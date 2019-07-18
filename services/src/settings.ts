@@ -3,6 +3,10 @@ import { Injectable } from '@nestjs/common';
 
 @Injectable()
 export default class Settings {
+  getRedisUrl(): string {
+    return this.getString('REDIS_URL', 'redis://127.0.0.1:6379');
+  }
+
   getBtInstanceId(): any {
     return this.getString('BT_INSTANCE_ID', 'uptime')
   }

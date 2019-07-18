@@ -1,0 +1,12 @@
+version: '3'
+
+services:
+  app:
+    build: .
+    environment:
+      - REDIS_URL=redis://redis
+    command:
+      - node_modules/jest/bin/jest.js
+
+  redis:
+    image: redis:5-alpine

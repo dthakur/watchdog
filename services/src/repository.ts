@@ -83,7 +83,11 @@ export default class Repository {
   redis: Redis.Redis;
 
   constructor(private readonly logger: CustomLogger, private readonly settings: Settings) {
-    this.redis = new Redis();
+    this.redis = new Redis(settings.getRedisUrl());
+  }
+
+  close() {
+    return this.redis.quit();
   }
 
   async add(dto: CreateServiceDto): Promise<Service> {

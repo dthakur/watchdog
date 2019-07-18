@@ -32,6 +32,10 @@ describe('db', () => {
     repository = module.get<Repository>(Repository);
   });
 
+  afterAll(() => {
+    repository.close();
+  });
+
   it('services crud', async () => {
     let response = await repository.getAll();
     expect(response.length).toBe(0);
