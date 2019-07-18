@@ -1,0 +1,12 @@
+steps:
+  # copy secrets
+- name: 'gcr.io/cloud-builders/gsutil'
+  args: ['cp', 'gs://watchdog-secrets/.env', './.env']
+  dir: service
+  # build the container image
+- name: 'gcr.io/cloud-builders/docker'
+  args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/services:$SHORT_SHA', '.' ]
+  dir: service
+#  # Deploy container image to Cloud Run
+# - name: 'gcr.io/cloud-builders/gcloud'
+#  args: ['beta', 'run', 'deploy', 'services', '--image', 'gcr.io/$PROJECT_ID/services:$SHORT_SHA', '--region', 'us-central1','--platform', 'managed', '--set-cloudsql-instances', 'watchdog']
