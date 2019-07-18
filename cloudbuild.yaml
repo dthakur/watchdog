@@ -8,6 +8,6 @@ steps:
   dir: services
 - name: 'gcr.io/cloud-builders/docker'
   args: ['push', 'gcr.io/$PROJECT_ID/services:$SHORT_SHA']
-#  # Deploy container image to Cloud Run
+  # deploy container image to cloud run
 - name: 'gcr.io/cloud-builders/gcloud'
- args: ['beta', 'run', 'deploy', 'services', '--image', 'gcr.io/$PROJECT_ID/services:$SHORT_SHA', '--region', 'us-central1','--platform', 'managed']
+  args: ['beta', 'run', 'deploy', 'services', '--image', 'gcr.io/$PROJECT_ID/services:$SHORT_SHA', '--region', 'us-central1','--platform', 'managed']
