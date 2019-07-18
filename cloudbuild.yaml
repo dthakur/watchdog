@@ -6,8 +6,10 @@ steps:
 - name: 'gcr.io/cloud-builders/docker'
   args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/services:$SHORT_SHA', '.' ]
   dir: services
-- name: 'gcr.io/cloud-builders/docker'
-  args: ['push', 'gcr.io/$PROJECT_ID/services:$SHORT_SHA']
+  # tests
+- name: ‘docker/compose:1.19.0’
+  args: [‘up’, ‘--abort-on-container-exit’]
   # deploy container image to cloud run
 - name: 'gcr.io/cloud-builders/gcloud'
   args: ['beta', 'run', 'deploy', 'services', '--image', 'gcr.io/$PROJECT_ID/services:$SHORT_SHA', '--region', 'us-central1','--platform', 'managed']
+images: ['gcr.io/$PROJECT_ID/services:$SHORT_SHA']
