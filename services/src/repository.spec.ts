@@ -3,7 +3,7 @@ import Repository, {timestampExtractor} from './repository';
 import CustomLogger from './logger';
 import Settings from './settings';
 import uuid from 'uuid/v4';
-import moment = require('moment');
+import moment from 'moment';
 
 describe('timesExtractor', () => {
   it('seconds', () => {expect(timestampExtractor(1563348305123).inSeconds).toBe(1563348305);});
@@ -30,22 +30,19 @@ describe('db', () => {
       }).compile();
 
     repository = module.get<Repository>(Repository);
-    await repository.createSchema();
   });
 
   it('services crud', async () => {
-    // TODO: something weird, very slow with 0 rows
-    // let response = await repository.getAll();
-    // expect(response.length).toBe(0);
+    let response = await repository.getAll();
+    expect(response.length).toBe(0);
 
     await repository.add({
       name: 'google.com',
       url: 'https://google.com'
     });
 
-    let response = await repository.getAll();
+    response = await repository.getAll();
     expect(response.length).toBe(1);
-
     await repository.delete(response[0].id);
   });
 
@@ -56,6 +53,7 @@ describe('db', () => {
     });
 
     const id = response.id;
+    expect(id).toBeDefined();
 
     const t1 = 1563378600000; // Wednesday, July 17, 2019 3:50:00 PM
     await repository.saveChecks([{
@@ -66,7 +64,7 @@ describe('db', () => {
 
     const t1Extracted = timestampExtractor(t1);
     let checkResponse = await repository.getCheckForDay(id, t1Extracted.day);
-    expect(checkResponse['15']['50'][0].value).toBe(201)
+    expect(checkResponse.get('' + t1Extracted.minuteOfDay)!.value).toBe(201)
 
     let checkTime = 1563417506000; // Thursday, July 18, 2019 2:38:26 AM
     jest.spyOn(repository, 'getTodaysDateMoment').mockImplementation(() => moment(checkTime).utc().startOf('day'));
@@ -74,8 +72,10 @@ describe('db', () => {
     let services = await repository.getAll();
     const service = services.find(s => s.id === id)!;
 
-    expect(service.checks[1][0]).toBe(1563321600);
-    expect(service.checks[1][1][t1Extracted.hourOfDay][t1Extracted.minuteOfHour]).toBe(201);
-    expect(service.checks[1][1][t1Extracted.hourOfDay][t1Extracted.minuteOfHour + 1]).toBe(0);
+    expect(service.checks[1][0][0]).toBe(1563321600);
+    expect(service.checks[1][1][t1Extracted.minuteOfDay]).toBe(201);
+    expect(service.checks[1][1][t1Extracted.minuteOfDay + 1]).toBe(0);
+
+    await repository.delete(id);
   });
 });

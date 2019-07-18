@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { CreateServiceDto, Service } from './entities';
 import CustomLogger from './logger';
-import Bigtable from '@google-cloud/bigtable';
 import Settings from './settings';
 import nanoid from 'nanoid';
 import assert = require('assert');
 import _ from 'lodash';
-import moment from 'moment';
+import moment, { Moment } from 'moment';
+import Redis from 'ioredis';
 
 enum UpStatus {
   Down = 0,
@@ -29,12 +29,37 @@ interface ServiceUptime {
   hours: UpStatus[]
 }
 
+interface MinuteValue {
+  value: number;
+  timestamp: number;
+}
+
+export function dayTimestampToMinutes(ts: number): number[] {
+  // seconds
+  assert(ts > 1000000000, '1000000000 ' + ts);
+  assert(ts < 1000000000000, '1000000000000 ' + ts);
+  assert(timestampExtractor(ts * 1000).day === ts, timestampExtractor(ts * 1000).day + ' ' + ts);
+
+  const nextDay = ts + 24 * 60 * 60;
+  const minutes = [];
+
+  let current = ts;
+  while (current < nextDay) {
+    minutes.push(current);
+    current = current + 60;
+  }
+
+  assert(minutes.length === 24 * 60);
+  return minutes;
+}
+
 export function timestampExtractor(ts: number) {
   assert(ts > 1000000000000, '' + ts);
   const mm = moment(ts).utc();
 
   const inSeconds = mm.unix();
   const day = mm.clone().startOf('day').unix();
+  const minute = mm.clone().startOf('minute').unix();
   const hourOfDay = mm.hour();
   const minuteOfHour = mm.minute();
   const isoDayOfWeek = mm.isoWeekday();
@@ -44,6 +69,7 @@ export function timestampExtractor(ts: number) {
   return {
     inSeconds,
     day,
+    minute,
     hourOfDay,
     minuteOfHour,
     isoDayOfWeek,
@@ -54,45 +80,22 @@ export function timestampExtractor(ts: number) {
 
 @Injectable()
 export default class Repository {
-  instance: any;
+  redis: Redis.Redis;
 
   constructor(private readonly logger: CustomLogger, private readonly settings: Settings) {
-    this.instance = Bigtable().instance(this.settings.getBtInstanceId());
-  }
-
-  async createSchema() {
-    const info = {name: 'info', rule: {versions: 1}};
-    const hours = _.range(24).map(n => {
-      return {name: '' + n, rule: {versions: 1}};
-    });
-
-    const days = _.range(7).map(n => {
-      return {name: '' + n, rule: {versions: 1}};
-    });
-
-    await this.instance.table('services').create({families: [info].concat(days)});
-    await this.instance.table('checks').create({families: hours});
-
-    this.logger.log('schema created');
+    this.redis = new Redis();
   }
 
   async add(dto: CreateServiceDto): Promise<Service> {
-    const table = this.instance.table('services');
     const id = nanoid();
-
     const ts = Date.now();
-    const service = {
-      key: id,
-      data: {
-        info: {
-          name: dto.name,
-          url: dto.url,
-          createdAt: ts
-        }
-      },
-    };
 
-    await table.insert(service);
+    await this.redis.multi().hmset(id, {
+      id: id,
+      name: dto.name,
+      url: dto.url,
+      createdAt: ts
+    }).sadd('services', id).exec();
 
     return {
       id,
@@ -107,144 +110,137 @@ export default class Repository {
     return moment().utc().startOf('day');
   }
 
-  private checksToView(id: string, data: any) {
-    const today = this.getTodaysDateMoment();
-    const days = _.range(7).map(n => today.clone().utc().subtract(n, 'day'))
-
+  private getBaseChecksArray(days: number[]) {
     const info = days.map(d => {
-      const values = _.range(24).map(hour => {
-        return _.range(60).map(minute => {
-          return 0;
-        });
+      const values = _.range(24 * 60).map(_minute => {
+        return 0;
       });
 
-      return [d.unix(), values];
+      return [[d], values];
     });
-
-    for (const zeroDayOfWeek of Object.keys(data)) {
-      if (!/^\d+$/.test(zeroDayOfWeek)) {
-        continue;
-      }
-
-      // convert to the correct timestamp
-      const zeroDayOfWeekToday = today.isoWeekday() - 1;
-      let daysPassed = (zeroDayOfWeekToday - parseInt(zeroDayOfWeek));
-      if (daysPassed < 0) {
-        daysPassed = 7 + daysPassed;
-      }
-
-      assert(daysPassed >= 0 && daysPassed < 7, `${daysPassed} ${zeroDayOfWeekToday}, ${zeroDayOfWeek}`)
-
-      const minuteData = data[zeroDayOfWeek];
-      for (const minuteString of Object.keys(minuteData)) {
-        if (!/^\d+$/.test(minuteString)) {
-          continue;
-        }
-
-        const minuteOfDay = parseInt(minuteString);
-        const hour = Math.floor(minuteOfDay / 60);
-        const minute = minuteOfDay - hour * 60;
-
-        const value = minuteData[minuteString][0].value;
-        const timeWhenSaved = moment(Math.round(parseInt(minuteData[minuteString][0].timestamp) / 1000)).utc();
-        const associatedDay = days[daysPassed];
-        const lookupToDayDuration = moment.duration(timeWhenSaved.diff(associatedDay));
-
-        if (lookupToDayDuration.asHours() > 24) {
-          // throw new Error(`stale value id=${id} timeWhenSaved=${timeWhenSaved.toString()} associatedDay=${associatedDay.toString()} hours=${lookupToDayDuration.asHours()}`);
-        }
-
-        const pointer = info[daysPassed][1] as number[][];
-        pointer[hour][minute] = value;
-      }
-    }
 
     return info;
   }
 
-  private rowToView(row: any): Service {
-    return {
-      id: row.id,
-      name: row.data.info.name[0].value,
-      url: row.data.info.url[0].value,
-      createdAt: row.data.info.createdAt[0].value,
-      checks: this.checksToView(row.id, row.data)
-    }
+  private checksToView(id: string, days: number[], values: Map<string, Map<string, MinuteValue>>): number[][][] {
+    return days.map(day => {
+      const dayAsMoment = moment(day * 1000).utc();
+
+      return [[day], dayTimestampToMinutes(day).map(minuteAbsolute => {
+        const minute = Math.floor((minuteAbsolute - day) / 60);
+        const minuteValue = values.get('' + day)!.get('' + minute)!;
+
+        if (minuteValue.value !== 0) {
+          const timeWhenSaved = moment(minuteValue.timestamp).utc();
+          const lookupToDayDuration = moment.duration(timeWhenSaved.diff(dayAsMoment));
+
+          if (lookupToDayDuration.asHours() > 24) {
+            throw new Error(`stale value id=${id} timeWhenSaved=${timeWhenSaved.toString()} associatedDay=${dayAsMoment.toString()} hours=${lookupToDayDuration.asHours()}`);
+          }
+        }
+
+        return minuteValue.value;
+      })]
+    });;
   }
 
   async getAll(): Promise<Service[]> {
-    const table = this.instance.table('services');
+    const today = this.getTodaysDateMoment();
+    const days = _.range(7).map(n => today.clone().utc().subtract(n, 'day').unix());
 
-    return new Promise((resolve, reject) => {
-      const rows: Service[] = [];
-      table.createReadStream()
-        .on('error', reject)
-        .on('data', (row: any) =>{
-          rows.push(this.rowToView(row));
-        })
-        .on('end', function() {
-          resolve(rows)
-        });
+    const ids = await this.redis.smembers('services');
+    const services = await Promise.all(ids.map(async (i: string) => {
+      const item = await this.redis.hgetall(i);
+
+      item.checks = [];
+      return item;
+    })) as Service[];
+
+    const items = await this.getCheckForDays(ids, days);
+
+    services.forEach(service => {
+      service.checks = this.checksToView(service.id, days, items.get(service.id)!);
     });
+
+    return services;
   }
 
   async delete(id: string) {
-    await this.instance.table('services').row(id).delete();
+    await this.redis.srem('services', id);
     return {};
   }
 
   async getCheckForDay(id: string, dayTimestamp: number) {
-    const key = `${id}#${dayTimestamp}`;
-    const table = this.instance.table('checks');
-    const response = await table.row(key).get();
-    return response[0].data;
+    return (await this.getCheckForDays([id], [dayTimestamp])).get(id)!.get('' + dayTimestamp)!;
+  }
+
+  async getCheckForDays(ids: string[], dayTimestamps: number[]) {
+    if (ids.length === 0) {
+      return new Map();
+    }
+
+    assert(ids.length > 0, JSON.stringify(ids));
+    assert(dayTimestamps.length > 0);
+
+    const p = this.redis.pipeline();
+
+    ids.forEach(id => {
+      dayTimestamps.forEach(dayTimestamp => {
+        const minutes = dayTimestampToMinutes(dayTimestamp);
+
+        minutes.forEach(m => {
+          p.hgetall(`${id}:${m}`);
+        });
+      });
+    });
+
+    const response = await p.exec();
+    const result: Map<string, Map<string, Map<string, MinuteValue>>> = new Map;
+
+    ids.forEach(id => {
+      result.set(id, new Map());
+      dayTimestamps.forEach(dayTimestamp => {
+        const minuteMap = new Map();
+        result.get(id)!.set('' + dayTimestamp, minuteMap);
+        const minutes = dayTimestampToMinutes(dayTimestamp);
+
+        for (const minute in minutes) {
+          let content = response[0][1];
+
+          if (_.isEmpty(content)) {
+            content = {
+              value: 0,
+              timestamp: 0
+            }
+          } else {
+            content.value = parseInt(content.value);
+            content.timestamp = parseInt(content.timestamp);
+          }
+
+          minuteMap.set(minute, content);
+          response.shift();
+        }
+      });
+    });
+
+    return result;
   }
 
   private async updateChecks(results: CheckResult[]) {
-    const rows = results.map(r => {
-      const times = timestampExtractor(r.codeAt);
-      const key = `${r.id}#${times.day}`;
+    const p = this.redis.pipeline();
 
-      return {
-        key,
-        data: {
-          [times.hourOfDay]: {
-            [times.minuteOfHour]: {
-              value: r.code,
-              timestamp: r.codeAt * 1000
-            }
-          }
-        }
-      };
+    results.forEach(r => {
+      const times = timestampExtractor(r.codeAt);
+      const key = `${r.id}:${times.minute}`;
+      const fields = {value: r.code, timestamp: r.codeAt};
+
+      p.hmset(key, fields)
     });
 
-    await this.instance.table('checks').insert(rows);
-  }
-
-  private async updateServicesFromChecks(results: CheckResult[]) {
-    const serviceRows = results.map(r => {
-      const times = timestampExtractor(r.codeAt);
-
-      const minutes = {
-        [times.minuteOfDay]: {
-          value: r.code,
-          timestamp: r.codeAt * 1000
-        }
-      };
-
-      return {
-        key: `${r.id}`,
-        data: {
-          [times.zeroIndexedDayOfWeek]: minutes
-        }
-      };
-    });
-
-    await this.instance.table('services').insert(serviceRows);
+    await p.exec();
   }
 
   async saveChecks(results: CheckResult[]) {
     await this.updateChecks(results);
-    await this.updateServicesFromChecks(results);
   }
 }
