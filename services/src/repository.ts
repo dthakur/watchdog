@@ -116,18 +116,6 @@ export default class Repository {
     return moment().utc().startOf('day');
   }
 
-  private getBaseChecksArray(days: number[]) {
-    const info = days.map(d => {
-      const values = _.range(24 * 60).map(_minute => {
-        return 0;
-      });
-
-      return [[d], values];
-    });
-
-    return info;
-  }
-
   private checksToView(id: string, days: number[], values: Map<string, Map<string, MinuteValue>>): number[][][] {
     return days.map(day => {
       const dayAsMoment = moment(day * 1000).utc();
