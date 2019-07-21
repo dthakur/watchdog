@@ -73,7 +73,7 @@ describe('db', () => {
     expect(checkResponse.get('' + t1Extracted.minuteOfDay)!.value).toBe(201)
 
     let checkTime = 1563417506000; // Thursday, July 18, 2019 2:38:26 AM
-    jest.spyOn(repository, 'getTodaysDateMoment').mockImplementation(() => moment(checkTime).utc().startOf('day'));
+    jest.spyOn(repository, 'getTodaysDateMomentUtc').mockImplementation(() => moment(checkTime).utc().startOf('day'));
 
     let services = await repository.getAll();
     const service = services.find(s => s.id === id)!;

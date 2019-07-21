@@ -112,7 +112,7 @@ export default class Repository {
     };
   }
 
-  public getTodaysDateMoment() {
+  public getTodaysDateMomentUtc() {
     return moment().utc().startOf('day');
   }
 
@@ -151,7 +151,7 @@ export default class Repository {
   }
 
   async getAll(): Promise<Service[]> {
-    const today = this.getTodaysDateMoment();
+    const today = this.getTodaysDateMomentUtc();
     const days = _.range(7).map(n => today.clone().utc().subtract(n, 'day').unix());
 
     const ids = await this.redis.smembers('services');
@@ -219,7 +219,7 @@ export default class Repository {
 
           if (_.isEmpty(content)) {
             content = {
-              value: 0,
+              value: -2,
               timestamp: 0
             }
           } else {
