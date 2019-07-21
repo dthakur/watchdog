@@ -8,6 +8,8 @@ import moment from 'moment';
 describe('timesExtractor', () => {
   it('seconds', () => {expect(timestampExtractor(1563348305123).inSeconds).toBe(1563348305);});
   it('day', () => {expect(timestampExtractor(1563348305123).day).toBe(1563321600);});
+  it('minute', () => {expect(timestampExtractor(1563348305123).minute).toBe(1563348300);});
+  it('tenSeconds', () => {expect(timestampExtractor(1563348305123).tenSeconds).toBe(1563348300);});
   it('hour', () => {expect(timestampExtractor(1563348305123).hourOfDay).toBe(7);});
   it('minute', () => {expect(timestampExtractor(1563348305123).minuteOfHour).toBe(25);});
   it('DayOfWeek', () => {expect(timestampExtractor(1563348305123).zeroIndexedDayOfWeek).toBe(2);});

@@ -60,6 +60,7 @@ export function timestampExtractor(ts: number) {
   const inSeconds = mm.unix();
   const day = mm.clone().startOf('day').unix();
   const minute = mm.clone().startOf('minute').unix();
+  const tenSeconds = Math.floor(ts / 10000) * 10;
   const hourOfDay = mm.hour();
   const minuteOfHour = mm.minute();
   const isoDayOfWeek = mm.isoWeekday();
@@ -70,6 +71,7 @@ export function timestampExtractor(ts: number) {
     inSeconds,
     day,
     minute,
+    tenSeconds,
     hourOfDay,
     minuteOfHour,
     isoDayOfWeek,
@@ -235,11 +237,13 @@ export default class Repository {
 
     results.forEach(r => {
       const times = timestampExtractor(r.codeAt);
-      const key = `${r.id}:${times.minute}`;
+      const minuteKey = `${r.id}:${times.minute}`;
+      const tenKey = `${r.id}:${times.tenSeconds}`;
       const fields = {value: r.code, timestamp: r.codeAt};
 
-      this.logger.log(`setting ${key} to ${JSON.stringify(fields)}`);
-      p.hmset(key, fields)
+      this.logger.log(`setting ${minuteKey} and ${tenKey} to ${JSON.stringify(fields)}`);
+      p.hmset(minuteKey, fields)
+      p.hmset(tenKey, fields)
     });
 
     await p.exec();
