@@ -80,7 +80,7 @@ describe('db', () => {
 
     expect(service.checks[1][0][0]).toBe(1563321600);
     expect(service.checks[1][1][t1Extracted.minuteOfDay]).toBe(201);
-    expect(service.checks[1][1][t1Extracted.minuteOfDay + 1]).toBe(0);
+    expect(service.checks[1][1][t1Extracted.minuteOfDay + 1]).toBe(-2);
 
     await repository.delete(id);
   });
