@@ -15,5 +15,5 @@ export interface Service {
   name: string,
   url: string,
   createdAt: number,
-  checks: any
+  checks: number[][][]
 }

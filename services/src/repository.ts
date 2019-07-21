@@ -238,6 +238,7 @@ export default class Repository {
       const key = `${r.id}:${times.minute}`;
       const fields = {value: r.code, timestamp: r.codeAt};
 
+      this.logger.log(`setting ${key} to ${JSON.stringify(fields)}`);
       p.hmset(key, fields)
     });
 
