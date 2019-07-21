@@ -190,15 +190,19 @@ export default class Repository {
 
     const p = this.redis.pipeline();
 
+    let lookups = 0;
     ids.forEach(id => {
       dayTimestamps.forEach(dayTimestamp => {
         const minutes = dayTimestampToMinutes(dayTimestamp);
 
         minutes.forEach(m => {
           p.hgetall(`${id}:${m}`);
+          lookups = lookups + 1;
         });
       });
     });
+
+    this.logger.log(`redis lookup ids=${ids.join(',')} keyCount=${lookups}`);
 
     const response = await p.exec();
     const result: Map<string, Map<string, Map<string, MinuteValue>>> = new Map;
