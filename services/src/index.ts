@@ -8,6 +8,7 @@ async function main() {
     logger: new CustomLogger()
   });
 
+  app.enableCors();
   app.setGlobalPrefix('api/v1');
   app.useGlobalPipes(new ValidationPipe());
 
