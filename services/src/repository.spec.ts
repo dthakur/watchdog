@@ -38,6 +38,10 @@ describe('db', () => {
     repository.close();
   });
 
+  beforeEach(async () => {
+    await repository.deleteAll();
+  });
+
   it('services crud', async () => {
     let response = await repository.getAll();
     expect(response.length).toBe(0);
@@ -53,6 +57,9 @@ describe('db', () => {
   });
 
   it('update-checks works correctly', async () => {
+    let getResponse = await repository.getAll();
+    expect(getResponse.length).toBe(0);
+
     let response = await repository.add({
       name: 'google.com',
       url: 'https://google.com'
@@ -69,18 +76,24 @@ describe('db', () => {
     }]);
 
     const t1Extracted = timestampExtractor(t1);
-    let checkResponse = await repository.getCheckForDay(id, t1Extracted.day);
-    expect(checkResponse.get('' + t1Extracted.minuteOfDay)!.value).toBe(201)
+
+    jest.spyOn(repository, 'getCurrentMinuteMomentUtc').mockImplementation(() => moment.unix(t1Extracted.minute).utc());
+    getResponse = await repository.getAll();
+    expect(getResponse.length).toBe(1);
+    expect(getResponse[0].checksLatestMinute).toBe(t1Extracted.minute);
+    expect(getResponse[0].checks[0]).toBe(201);
 
     let checkTime = 1563417506000; // Thursday, July 18, 2019 2:38:26 AM
-    jest.spyOn(repository, 'getTodaysDateMomentUtc').mockImplementation(() => moment(checkTime).utc().startOf('day'));
+    jest.spyOn(repository, 'getCurrentMinuteMomentUtc').mockImplementation(() => moment(checkTime).utc().startOf('minute'));
 
     let services = await repository.getAll();
     const service = services.find(s => s.id === id)!;
 
-    expect(service.checks[1][0][0]).toBe(1563321600);
-    expect(service.checks[1][1][t1Extracted.minuteOfDay]).toBe(201);
-    expect(service.checks[1][1][t1Extracted.minuteOfDay + 1]).toBe(-2);
+    const currentExtracted = timestampExtractor(checkTime);
+    expect(service.checksLatestMinute).toBe(currentExtracted.minute);
+    const minuteOffset = Math.floor(moment.duration(moment(checkTime).diff(moment(t1))).asMinutes());
+    expect(service.checks[minuteOffset]).toBe(201);
+    expect(service.checks[minuteOffset + 1]).toBe(-2);
 
     await repository.delete(id);
   });

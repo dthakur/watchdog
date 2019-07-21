@@ -53,14 +53,14 @@ export function dayTimestampToMinutes(ts: number): number[] {
   return minutes;
 }
 
-export function timestampExtractor(ts: number) {
-  assert(ts > 1000000000000, '' + ts);
-  const mm = moment(ts).utc();
+export function timestampExtractor(tsMills: number) {
+  assert(tsMills > 1000000000000, '' + tsMills);
+  const mm = moment(tsMills).utc();
 
   const inSeconds = mm.unix();
   const day = mm.clone().startOf('day').unix();
   const minute = mm.clone().startOf('minute').unix();
-  const tenSeconds = Math.floor(ts / 10000) * 10;
+  const tenSeconds = Math.floor(tsMills / 10000) * 10;
   const hourOfDay = mm.hour();
   const minuteOfHour = mm.minute();
   const isoDayOfWeek = mm.isoWeekday();
@@ -85,6 +85,7 @@ export default class Repository {
   redis: Redis.Redis;
 
   constructor(private readonly logger: CustomLogger, private readonly settings: Settings) {
+    logger.log(`using redis from ${settings.getRedisUrl()}`);
     this.redis = new Redis(settings.getRedisUrl());
   }
 
@@ -108,120 +109,92 @@ export default class Repository {
       name: dto.name,
       url: dto.url,
       createdAt: ts,
+      checksLatestMinute: 0,
       checks: []
     };
   }
 
-  public getTodaysDateMomentUtc() {
-    return moment().utc().startOf('day');
-  }
-
-  private checksToView(id: string, days: number[], values: Map<string, Map<string, MinuteValue>>): number[][][] {
-    return days.map(day => {
-      const dayAsMoment = moment(day * 1000).utc();
-
-      return [[day], dayTimestampToMinutes(day).map(minuteAbsolute => {
-        const minute = Math.floor((minuteAbsolute - day) / 60);
-        const minuteValue = values.get('' + day)!.get('' + minute)!;
-
-        if (minuteValue.value !== 0) {
-          const timeWhenSaved = moment(minuteValue.timestamp).utc();
-          const lookupToDayDuration = moment.duration(timeWhenSaved.diff(dayAsMoment));
-
-          if (lookupToDayDuration.asHours() > 24) {
-            throw new Error(`stale value id=${id} timeWhenSaved=${timeWhenSaved.toString()} associatedDay=${dayAsMoment.toString()} hours=${lookupToDayDuration.asHours()}`);
-          }
-        }
-
-        return minuteValue.value;
-      })]
-    });;
+  public getCurrentMinuteMomentUtc() {
+    return moment().utc().startOf('minute');
   }
 
   async getAll(): Promise<Service[]> {
-    const today = this.getTodaysDateMomentUtc();
-    const days = _.range(7).map(n => today.clone().utc().subtract(n, 'day').unix());
-
     const ids = await this.redis.smembers('services');
     const services = await Promise.all(ids.map(async (i: string) => {
       const item = await this.redis.hgetall(i);
 
+      item.checksToday = 0,
       item.checks = [];
       return item;
     })) as Service[];
 
-    const items = await this.getCheckForDays(ids, days);
+    const MINUTES_TO_RETURN = 2 * 24 * 60; // 2 days
+    const minute = this.getCurrentMinuteMomentUtc();
 
+    await this.addChecks(services, minute, MINUTES_TO_RETURN);
+    return services;
+  }
+
+  async addChecks(services: Service[], minute: moment.Moment, count: number) {
+    if (!services) {
+      return;
+    }
+
+    const minutes = _.range(count).map(i => minute.clone().subtract(i, 'minute').unix());
+
+    const p = this.redis.pipeline();
+    let lookups = 0;
     services.forEach(service => {
-      service.checks = this.checksToView(service.id, days, items.get(service.id)!);
+      minutes.forEach(m => {
+        const key = `${service.id}:${m}`;
+        p.hgetall(key);
+        lookups = lookups + 1;
+      });
     });
 
-    return services;
+    this.logger.log(`redis lookup ids=[${services.map(s => s.id).join(',')}] keyCount=${lookups}`);
+    const response = await p.exec();
+
+    services.forEach((service, serviceIndex) => {
+      const serviceMinutes = minutes.map((minute, minuteIndex) => {
+        let content = response[serviceIndex * minutes.length + minuteIndex][1];
+
+        if (_.isEmpty(content)) {
+          content = {
+            value: -2,
+            timestamp: 0
+          }
+        } else {
+          content.value = parseInt(content.value);
+          content.timestamp = parseInt(content.timestamp);
+        }
+
+        if (content.value !== 0 && content.timestamp !== 0) {
+          const timeWhenSaved = moment(content.timestamp).utc();
+          const minuteTime = moment.unix(minute).utc();
+
+          const lookupDurationInMinutes = moment.duration(timeWhenSaved.diff(minuteTime)).asMinutes();
+
+          if (lookupDurationInMinutes > 5) {
+            throw new Error(`stale value id=${service.id} timeWhenSaved=${timeWhenSaved.toString()} associatedMinute=${minuteTime.toString()}}`);
+          }
+        }
+
+        return content.value;
+      });
+
+      service.checksLatestMinute = minutes[0];
+      service.checks = serviceMinutes;
+    });
+  }
+
+  deleteAll() {
+    return this.redis.del('services');
   }
 
   async delete(id: string) {
     await this.redis.srem('services', id);
     return {};
-  }
-
-  async getCheckForDay(id: string, dayTimestamp: number) {
-    return (await this.getCheckForDays([id], [dayTimestamp])).get(id)!.get('' + dayTimestamp)!;
-  }
-
-  async getCheckForDays(ids: string[], dayTimestamps: number[]) {
-    if (ids.length === 0) {
-      return new Map();
-    }
-
-    assert(ids.length > 0, JSON.stringify(ids));
-    assert(dayTimestamps.length > 0);
-
-    const p = this.redis.pipeline();
-
-    let lookups = 0;
-    ids.forEach(id => {
-      dayTimestamps.forEach(dayTimestamp => {
-        const minutes = dayTimestampToMinutes(dayTimestamp);
-
-        minutes.forEach(m => {
-          p.hgetall(`${id}:${m}`);
-          lookups = lookups + 1;
-        });
-      });
-    });
-
-    this.logger.log(`redis lookup ids=${ids.join(',')} keyCount=${lookups}`);
-
-    const response = await p.exec();
-    const result: Map<string, Map<string, Map<string, MinuteValue>>> = new Map;
-
-    ids.forEach(id => {
-      result.set(id, new Map());
-      dayTimestamps.forEach(dayTimestamp => {
-        const minuteMap = new Map();
-        result.get(id)!.set('' + dayTimestamp, minuteMap);
-        const minutes = dayTimestampToMinutes(dayTimestamp);
-
-        for (const minute in minutes) {
-          let content = response[0][1];
-
-          if (_.isEmpty(content)) {
-            content = {
-              value: -2,
-              timestamp: 0
-            }
-          } else {
-            content.value = parseInt(content.value);
-            content.timestamp = parseInt(content.timestamp);
-          }
-
-          minuteMap.set(minute, content);
-          response.shift();
-        }
-      });
-    });
-
-    return result;
   }
 
   private async updateChecks(results: CheckResult[]) {
@@ -230,12 +203,10 @@ export default class Repository {
     results.forEach(r => {
       const times = timestampExtractor(r.codeAt);
       const minuteKey = `${r.id}:${times.minute}`;
-      const tenKey = `${r.id}:${times.tenSeconds}`;
       const fields = {value: r.code, timestamp: r.codeAt};
 
-      this.logger.log(`setting ${minuteKey} and ${tenKey} to ${JSON.stringify(fields)}`);
+      this.logger.log(`setting ${minuteKey} to ${JSON.stringify(fields)}`);
       p.hmset(minuteKey, fields)
-      p.hmset(tenKey, fields)
     });
 
     await p.exec();

@@ -15,5 +15,6 @@ export interface Service {
   name: string,
   url: string,
   createdAt: number,
-  checks: number[][][]
+  checksLatestMinute: number,
+  checks: number[]  // > 0 = http status code, -1 = timeout, -2 = no value
 }
