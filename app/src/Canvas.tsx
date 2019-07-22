@@ -135,9 +135,10 @@ export default class extends React.Component<{}, ServicesState> {
       }));
     });
 
-    // center horizontally
+    // center horizontally and vertically
     const minSpareX = _.min(infos.map(x => x.spareX))!;
-    div.style.transform = `translate(${minSpareX / 2}px, 0px)`;
+    const minSpareY = _.min(infos.map(x => x.spareY))!;
+    div.style.transform = `translate(${minSpareX / 2}px, ${minSpareY / 2}px)`;
   }
 
   render() {
