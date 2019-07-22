@@ -2,9 +2,7 @@ import React from 'react';
 import axios from 'axios';
 import { Service } from './entities';
 import moment from 'moment';
-import _ from 'lodash';
 import { ColorScheme } from './ColorScheme';
-import { DivRenderer } from './DivRenderer';
 
 interface ServicesState {
   services: Service[]
@@ -19,6 +17,7 @@ export interface Rect {
 
 export default class extends React.Component<{}, ServicesState> {
   rootRef: React.RefObject<HTMLDivElement>;
+  state = {services: []} as ServicesState;
 
   constructor(props: any) {
     super(props);
@@ -29,29 +28,38 @@ export default class extends React.Component<{}, ServicesState> {
     setInterval(this.getServices.bind(this), 30 * 1000);
   }
 
-  shouldComponentUpdate() {
-    // not using react for rendering
-    return false;
-  }
-
   private async getServices() {
     const url = '/api/v1/services?days=1'
     const response = await axios.get<Service[]>(url);
     const services = response.data;
 
     this.setState({services});
-
-    this.rootRef.current!.innerHTML = '';
-
-    _.defer(() => {
-      this.draw(this.rootRef.current!, services);
-    });
   }
 
-  private drawService(service: Service, renderer: DivRenderer) {
-    const width = 30;
-    renderer.addText(service.name, width);
-    return this.drawChecks(service, renderer.xOffset(width, true));
+  private drawService(service: Service, width: number, rect: Rect) {
+    const checks = this.drawChecks(service, {
+      x: rect.x + width,
+      y: rect.y,
+      width: rect.width - rect.x,
+      height: rect.height
+    })
+
+    return <div key={service.id} style={{position: 'absolute'}}>
+      <span style={{
+        position: 'absolute',
+        left: rect.x - 10,
+        top: rect.y,
+        color: ColorScheme.text,
+        height: rect.height,
+        textAlign: 'center',
+        width: width,
+        writingMode: 'vertical-lr',
+        transform: 'rotate(-180deg)'
+      }}>{service.name}</span>
+      <div>
+        {checks}
+      </div>
+    </div>;
   }
 
   private getColor(minuteData: number) {
@@ -66,14 +74,14 @@ export default class extends React.Component<{}, ServicesState> {
     }
   }
 
-  private getSizing(itemCount: number, renderer: DivRenderer) {
+  private getSizing(itemCount: number, rect: Rect) {
     const itemsPerLine = 3 * 60; // x hours
     const lines = Math.ceil(itemCount / itemsPerLine);
-    const width = Math.floor(renderer.rect.width / itemsPerLine);
-    const height = Math.floor(renderer.rect.height / lines);
+    const width = Math.floor(rect.width / itemsPerLine);
+    const height = Math.floor(rect.height / lines);
 
-    const spareX = Math.floor(renderer.rect.width - itemsPerLine * width);
-    const spareY = Math.floor(renderer.rect.height - lines * height);
+    const spareX = Math.floor(rect.width - itemsPerLine * width);
+    const spareY = Math.floor(rect.height - lines * height);
 
     return {
       lines,
@@ -85,69 +93,65 @@ export default class extends React.Component<{}, ServicesState> {
     }
   }
 
-  private drawChecks(service: Service, originalRenderer: DivRenderer) {
-    const drawInfo = this.getSizing(service.checks.length, originalRenderer);
-    const drawRenderer = originalRenderer;
-    let renderer = drawRenderer;
+  private drawChecks(service: Service, rect: Rect) {
+    const drawInfo = this.getSizing(service.checks.length, rect);
 
-    let i = 0;
-    service.checks.forEach((minute, minuteIndex) => {
+    return service.checks.map((minute, minuteIndex) => {
       const minuteMoment = moment.unix(service.checksLatestMinute).subtract(minuteIndex, 'minute');
       const title = `${minuteMoment.format('lll')} ${minute}`;
 
-      renderer.size(drawInfo.width, drawInfo.height).addDiv({
-        color: this.getColor(minute),
-        title,
-        border: true
-      });
-
-      renderer = renderer.xOffset(drawInfo.width);
-
-      i = i + 1;
-      if (i !== 0 && (i % drawInfo.itemsPerLine === 0)) {
-        renderer.rect.x = drawRenderer.rect.x;
-        renderer.rect.y = Math.floor(drawRenderer.rect.y + drawInfo.height * i / drawInfo.itemsPerLine);
-      }
+      return <div key={`${service.id}:${minuteMoment.utc().unix()}`} title={title} style={{
+        background: this.getColor(minute),
+        position: 'absolute',
+        height: drawInfo.height,
+        width: drawInfo.width,
+        left: rect.x + (minuteIndex % drawInfo.itemsPerLine) * drawInfo.width,
+        top: rect.y + Math.floor(drawInfo.height * Math.floor((minuteIndex / drawInfo.itemsPerLine))),
+        borderRadius: 2,
+        boxSizing: 'border-box',
+        borderColor: ColorScheme.borderColor,
+        borderWidth: 1,
+        borderStyle: 'solid'
+      }}/>;
     });
-
-    return drawInfo;
   }
 
-  private draw(div: HTMLDivElement, services: Service[]) {
-    const width = document.body.clientWidth;
-    const height = document.body.clientHeight;
-
-    div.style.width = width + 'px';
-    div.style.height = height + 'px';
-    div.style.background = ColorScheme.background;
+  render() {
     document.documentElement.style.background = ColorScheme.background;
 
-    const renderer = new DivRenderer(document, div, {
-      x: 0,
-      y: 0,
-      width: document.body.clientWidth,
-      height: document.body.clientHeight
-    });
+    if (this.state.services.length === 0) {
+      return null;
+    }
 
-    const heightPerService = Math.floor(height / services.length);
-
-    const infos = services.map((service, index) => {
-      return this.drawService(service, renderer.offset({
+    const width = document.body.clientWidth;
+    const height = document.body.clientHeight;
+    const heightPerService = Math.floor(height / this.state.services.length);
+    const labelWidth = 30;
+    const services = this.state.services.map((service, index) => {
+      return this.drawService(service, labelWidth, {
         x: 0,
         y: heightPerService * index,
         width: width,
         height: heightPerService
-      }));
+      });
     });
 
-    // center horizontally and vertically
-    const minSpareX = _.min(infos.map(x => x.spareX))!;
-    const minSpareY = _.min(infos.map(x => x.spareY))!;
-    div.style.transform = `translate(${minSpareX / 2}px, ${minSpareY / 2}px)`;
-  }
+    const drawInfo = this.getSizing(this.state.services[0].checks.length, {
+      x: 0,
+      y: 0,
+      width: width - labelWidth,
+      height: heightPerService
+    });
+    const translate = `translate(${drawInfo.spareX / 2}px, ${drawInfo.spareY / 2}px)` // center horizontally and vertically
 
-  render() {
-    return <div ref={this.rootRef} />;
+    return <div ref={this.rootRef} style={{
+      width: document.body.clientWidth,
+      height: document.body.clientHeight,
+      background: ColorScheme.background,
+      transform: translate
+    }}>
+      {services};
+    </div>;
   }
 }
 
