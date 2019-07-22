@@ -126,7 +126,7 @@ export default class extends React.Component<{}, ServicesState> {
     const width = document.body.clientWidth;
     const height = document.body.clientHeight;
     const heightPerService = Math.floor(height / this.state.services.length);
-    const labelWidth = 30;
+    const labelWidth = 10;
     const services = this.state.services.map((service, index) => {
       return this.drawService(service, labelWidth, {
         x: 0,
