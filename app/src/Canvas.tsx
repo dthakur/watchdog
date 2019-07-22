@@ -150,7 +150,7 @@ export default class extends React.Component<{}, ServicesState> {
       background: ColorScheme.background,
       transform: translate
     }}>
-      {services};
+      {services}
     </div>;
   }
 }
