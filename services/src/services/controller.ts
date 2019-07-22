@@ -2,9 +2,10 @@ import { Controller, Post, Body, Get, Delete, Param, Query } from '@nestjs/commo
 import Repository from '../repository';
 import { CreateServiceDto } from '../entities';
 import { IsPositive, IsNumber, Max, Min } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 class GetAllQuery {
-  @IsPositive()
+  @Transform(x => parseInt(x))
   @IsNumber()
   @Min(0)
   @Max(2)
