@@ -50,8 +50,8 @@ export default class extends React.Component<{}, ServicesState> {
 
   private drawService(service: Service, renderer: DivRenderer) {
     const width = 30;
-    this.drawChecks(service, renderer.xOffset(width, true));
     renderer.addText(service.name, width);
+    return this.drawChecks(service, renderer.xOffset(width, true));
   }
 
   private getColor(minuteData: number) {
@@ -104,6 +104,8 @@ export default class extends React.Component<{}, ServicesState> {
         renderer.rect.y = Math.floor(drawRenderer.rect.y + drawInfo.height * i / drawInfo.itemsPerLine);
       }
     });
+
+    return drawInfo;
   }
 
   private draw(div: HTMLDivElement, services: Service[]) {
@@ -113,6 +115,7 @@ export default class extends React.Component<{}, ServicesState> {
     div.style.width = width + 'px';
     div.style.height = height + 'px';
     div.style.background = ColorScheme.background;
+    document.documentElement.style.background = ColorScheme.background;
 
     const renderer = new DivRenderer(document, div, {
       x: 0,
@@ -123,14 +126,18 @@ export default class extends React.Component<{}, ServicesState> {
 
     const heightPerService = Math.floor(height / services.length);
 
-    services.forEach((service, index) => {
-      this.drawService(service, renderer.offset({
+    const infos = services.map((service, index) => {
+      return this.drawService(service, renderer.offset({
         x: 0,
         y: heightPerService * index,
         width: width,
         height: heightPerService
       }));
     });
+
+    // center horizontally
+    const minSpareX = _.min(infos.map(x => x.spareX))!;
+    div.style.transform = `translate(${minSpareX / 2}px, 0px)`;
   }
 
   render() {
