@@ -1,8 +1,8 @@
+.git/
 Dockerfile
 README.md
-node_modules
+node_modules/
+.vscode
 npm-debug.log
 lib/
 bin/
-.vscode
-node_modules/

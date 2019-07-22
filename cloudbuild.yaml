@@ -5,15 +5,12 @@ steps:
   # build the container image
 - name: 'gcr.io/cloud-builders/docker'
   args: [ 'build', '-t', 'gcr.io/$PROJECT_ID/services:$SHORT_SHA', '.' ]
-  dir: services
   # tests
 - name: 'gcr.io/$PROJECT_ID/docker-compose'
   args: ['up', '--abort-on-container-exit']
-  dir: services
   # push
 - name: 'gcr.io/cloud-builders/docker'
   args: [ 'push', 'gcr.io/$PROJECT_ID/services:$SHORT_SHA']
-  dir: services
   # deploy container image to cloud run
 - name: 'gcr.io/cloud-builders/gcloud'
   args: ['beta', 'run', 'deploy', 'services', '--image', 'gcr.io/$PROJECT_ID/services:$SHORT_SHA','--platform', 'gke', '--cluster', 'standard-cluster-1', '--cluster-location', 'us-central1-a']
