@@ -4,7 +4,7 @@ import { Rect } from './Canvas';
 export class DivRenderer {
   constructor(private document: HTMLDocument, private div: HTMLDivElement, public readonly rect: Rect) {}
 
-  addDiv(color: string, title?: string, border: boolean = false) {
+  addDiv({color, title, border}: {color: string, title: string, border: boolean}) {
     const e = this.document.createElement('div');
     e.style.background = color;
     e.style.position = 'absolute';
@@ -14,6 +14,7 @@ export class DivRenderer {
     e.style.top = this.rect.y + 'px';
 
     if (border) {
+      e.style.borderRadius = '2px';
       e.style.boxSizing = 'border-box';
       e.style.border = `${ColorScheme.borderColor} 1px solid`;
     }

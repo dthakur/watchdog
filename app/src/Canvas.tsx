@@ -95,7 +95,12 @@ export default class extends React.Component<{}, ServicesState> {
       const minuteMoment = moment.unix(service.checksLatestMinute).subtract(minuteIndex, 'minute');
       const title = `${minuteMoment.format('lll')} ${minute}`;
 
-      renderer.size(drawInfo.width, drawInfo.height).addDiv(this.getColor(minute), title, true);
+      renderer.size(drawInfo.width, drawInfo.height).addDiv({
+        color: this.getColor(minute),
+        title,
+        border: true
+      });
+
       renderer = renderer.xOffset(drawInfo.width);
 
       i = i + 1;
