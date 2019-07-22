@@ -3,7 +3,7 @@ export const ColorScheme = {
   text: '#CACACA', // gray
   ok: '#4DC5AD', // green
   timeout: '#C586C0', // purple
-  noData: '#CEB082', // yellow
+  noData: '#70634F', // "soybean"
   error: '#E6786A', // red
   borderColor: '#1E1E1E' // background
 };
