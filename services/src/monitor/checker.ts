@@ -33,7 +33,7 @@ export default class Checker {
   }
 
   async run() {
-    const services = await this.repo.getAll();
+    const services = await this.repo.getAll(0);
     const responses = await this.ping(services);
 
     await this.repo.saveChecks(responses.map(r => {

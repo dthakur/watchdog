@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Query } from '@nestjs/common';
 import { CreateServiceDto, Service } from './entities';
 import CustomLogger from './logger';
 import Settings from './settings';
@@ -118,7 +118,7 @@ export default class Repository {
     return moment().utc().startOf('minute');
   }
 
-  async getAll(): Promise<Service[]> {
+  async getAll(days: number = 1): Promise<Service[]> {
     const ids = await this.redis.smembers('services');
     const services = await Promise.all(ids.map(async (i: string) => {
       const item = await this.redis.hgetall(i);
@@ -128,10 +128,12 @@ export default class Repository {
       return item;
     })) as Service[];
 
-    const MINUTES_TO_RETURN = 2 * 24 * 60; // 2 days
-    const minute = this.getCurrentMinuteMomentUtc();
+    if (days > 0) {
+      const minutesToReturn = days * 24 * 60;
+      const minute = this.getCurrentMinuteMomentUtc();
+      await this.addChecks(services, minute, minutesToReturn);
+    }
 
-    await this.addChecks(services, minute, MINUTES_TO_RETURN);
     return services;
   }
 

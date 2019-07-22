@@ -1,14 +1,23 @@
-import { Controller, Post, Body, Get, Delete, Param } from '@nestjs/common';
+import { Controller, Post, Body, Get, Delete, Param, Query } from '@nestjs/common';
 import Repository from '../repository';
 import { CreateServiceDto } from '../entities';
+import { IsPositive, IsNumber, Max, Min } from 'class-validator';
+
+class GetAllQuery {
+  @IsPositive()
+  @IsNumber()
+  @Min(0)
+  @Max(2)
+  days!: number;
+}
 
 @Controller('services')
 export default class ServicesController {
   constructor(private readonly repo: Repository) {}
 
   @Get()
-  get() {
-    return this.repo.getAll();
+  get(@Query() query: GetAllQuery) {
+    return this.repo.getAll(query.days);
   }
 
   @Post()
