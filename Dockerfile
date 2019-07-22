@@ -12,9 +12,7 @@ COPY ./services ./services
 COPY ./app ./app
 
 RUN cd services && npm run build
-RUN cd app && npm run build
-
-COPY ./app/build ./services/public
+RUN cd app && npm run build && cp ./build ../services/public
 
 WORKDIR /base/services
 CMD [ "npm", "run", "prod" ]
