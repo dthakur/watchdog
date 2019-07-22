@@ -16,4 +16,5 @@ RUN cd app && npm run build
 
 COPY ./app/build ./services/public
 
+WORKDIR /base/services
 CMD [ "npm", "run", "prod" ]
