@@ -40,7 +40,7 @@ export default class extends React.Component<{}, ServicesState> {
   }
 
   private async getServices() {
-    const url = 'http://services.default.watchdog.run/api/v1/services?days=1'
+    const url = '/api/v1/services?days=1'
     const response = await axios.get<Service[]>(url);
     const services = response.data;
 
