@@ -150,6 +150,8 @@ interface Rect {
 }
 
 class DivRenderer {
+  constructor(private document: HTMLDocument, private div: HTMLDivElement, public readonly rect: Rect) {}
+
   addDiv(color: string, title?: string, border: boolean = false) {
     const e = this.document.createElement('div');
 
@@ -220,22 +222,6 @@ class DivRenderer {
       height: this.rect.height
     });
   }
-
-//   yOffset(y: number): any {
-//     return new CanvasRenderer(this.ctx, {
-//       x: this.rect.x,
-//       y: this.rect.y + y,
-//       width: this.rect.width,
-//       height: this.rect.height - y
-//     });
-//   }
-
-  constructor(private document: HTMLDocument, private div: HTMLDivElement, public readonly rect: Rect) {}
-
-//   fillRect(color: string) {
-//     this.ctx.fillStyle = color;
-//     this.ctx.fillRect(this.rect.x, this.rect.y, this.rect.width, this.rect.height);
-//   }
 
   offset(rect: Rect) {
     return new DivRenderer(document, this.div, {
