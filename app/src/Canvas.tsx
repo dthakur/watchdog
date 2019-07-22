@@ -17,6 +17,8 @@ export default class extends React.Component<{}, ServicesState> {
 
     this.rootRef = React.createRef();
     this.getServices();
+
+    setInterval(this.getServices.bind(this), 30 * 1000);
   }
 
   shouldComponentUpdate() {
@@ -29,6 +31,9 @@ export default class extends React.Component<{}, ServicesState> {
     const services = response.data;
 
     this.setState({services});
+
+    this.rootRef.current!.innerHTML = '';
+
     _.defer(() => {
       this.draw(this.rootRef.current!, services);
     });
@@ -61,8 +66,6 @@ export default class extends React.Component<{}, ServicesState> {
     const spareX = Math.floor(renderer.rect.width - itemsPerLine * width);
     const spareY = Math.floor(renderer.rect.height - lines * height);
 
-    console.log(`side=${height} lines=${lines} itemCount=${itemCount} itemsPerLine=${itemsPerLine} spareX=${spareX} spareY=${spareY}`);
-
     return {
       lines,
       height,
@@ -81,7 +84,7 @@ export default class extends React.Component<{}, ServicesState> {
     let i = 0;
     service.checks.forEach((minute, minuteIndex) => {
       const minuteMoment = moment.unix(service.checksLatestMinute).subtract(minuteIndex, 'minute');
-      const title = `${minuteMoment.toString()} ${minute}`;
+      const title = `${minuteMoment.format('lll')} ${minute}`;
 
       renderer.size(drawInfo.width, drawInfo.height).addDiv(this.getColor(minute), title, true);
       renderer = renderer.xOffset(drawInfo.width);
@@ -110,7 +113,6 @@ export default class extends React.Component<{}, ServicesState> {
     });
 
     const heightPerService = Math.floor(height / services.length);
-    console.log(`global width=${renderer.rect.width} height=${renderer.rect.height} heightPerService=${heightPerService}`);
 
     services.forEach((service, index) => {
       this.drawService(service, renderer.offset({
