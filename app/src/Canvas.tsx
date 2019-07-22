@@ -3,16 +3,7 @@ import axios from 'axios';
 import { Service } from './entities';
 import moment from 'moment';
 import _ from 'lodash';
-
-const ColorScheme = {
-  background: 'black',
-  text: 'white',
-  ok: 'green',
-  timeout: 'lightgray',
-  noData: 'blue',
-  error: 'red',
-  borderColor: 'black'
-};
+import {ColorScheme} from './ColorScheme';
 
 interface ServicesState {
   services: Service[]
@@ -32,13 +23,6 @@ export default class extends React.Component<{}, ServicesState> {
     return false;
   }
 
-  private getRandomColor() {
-    var r = 255 * Math.random()|0,
-        g = 255 * Math.random()|0,
-        b = 255 * Math.random()|0;
-    return 'rgb(' + r + ',' + g + ',' + b + ')';
-  }
-
   private async getServices() {
     const url = '/api/v1/services?days=1'
     const response = await axios.get<Service[]>(url);
@@ -51,8 +35,9 @@ export default class extends React.Component<{}, ServicesState> {
   }
 
   private drawService(service: Service, renderer: DivRenderer) {
-    this.drawChecks(service, renderer.xOffset(25, true));
-    renderer.addText(service.name, 25);
+    const width = 30;
+    this.drawChecks(service, renderer.xOffset(width, true));
+    renderer.addText(service.name, width);
   }
 
   private getColor(minuteData: number) {
@@ -70,7 +55,7 @@ export default class extends React.Component<{}, ServicesState> {
   private getSizing(itemCount: number, renderer: DivRenderer) {
     const itemsPerLine = 3 * 60; // 4 hours
     const lines = Math.ceil(itemCount / itemsPerLine);
-    const width = renderer.rect.width / itemsPerLine;
+    const width = Math.floor(renderer.rect.width / itemsPerLine);
     const height = Math.floor(renderer.rect.height / lines);
 
     const spareX = Math.floor(renderer.rect.width - itemsPerLine * width);
