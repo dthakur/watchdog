@@ -67,7 +67,7 @@ export default class extends React.Component<{}, ServicesState> {
   }
 
   private getSizing(itemCount: number, renderer: DivRenderer) {
-    const itemsPerLine = 3 * 60; // 4 hours
+    const itemsPerLine = 3 * 60; // x hours
     const lines = Math.ceil(itemCount / itemsPerLine);
     const width = Math.floor(renderer.rect.width / itemsPerLine);
     const height = Math.floor(renderer.rect.height / lines);
