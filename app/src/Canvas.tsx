@@ -93,15 +93,27 @@ export default class extends React.Component<{}, ServicesState> {
     }
   }
 
+  private minuteValuetoString(code: number) {
+    if (code > 0) {
+      return `code: ${code}`;
+    } else if (code === -1) {
+      return `timeout`;
+    } else if (code === -2) {
+      return `no data`;
+    }
+
+    return '' + code;
+  }
+
   private drawChecks(service: Service, rect: Rect) {
     const drawInfo = this.getSizing(service.checks.length, rect);
 
-    return service.checks.map((minute, minuteIndex) => {
+    return service.checks.map((minuteValue, minuteIndex) => {
       const minuteMoment = moment.unix(service.checksLatestMinute).subtract(minuteIndex, 'minute');
-      const title = `${minuteMoment.format('lll')} ${minute}`;
+      const title = `${minuteMoment.format('lll')}: ${this.minuteValuetoString(minuteValue)}`;
 
       return <div key={`${service.id}:${minuteMoment.utc().unix()}`} title={title} style={{
-        background: this.getColor(minute),
+        background: this.getColor(minuteValue),
         position: 'absolute',
         height: drawInfo.height,
         width: drawInfo.width,
