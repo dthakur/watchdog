@@ -39,7 +39,7 @@
     "dotenv": "8.0.0",
     "ioredis": "4.11.2",
     "jest": "^24.8.0",
-    "lodash": "4.17.14",
+    "lodash": "4.17.21",
     "moment": "2.24.0",
     "nanoid": "2.0.3",
     "reflect-metadata": "^0.1.13",
