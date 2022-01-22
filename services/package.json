@@ -41,7 +41,7 @@
     "jest": "^24.8.0",
     "lodash": "4.17.14",
     "moment": "2.24.0",
-    "nanoid": "2.0.3",
+    "nanoid": "3.1.31",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^6.5.2",
     "uuid": "3.3.2"
