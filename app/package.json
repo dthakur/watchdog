@@ -39,6 +39,6 @@
   },
   "devDependencies": {
     "@types/lodash": "4.14.136",
-    "class-validator": "0.9.1"
+    "class-validator": "0.14.0"
   }
 }
